@@ -1,137 +1,119 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Recorre ./downloads (por defecto), abre cada archivo .pdf y extrae metadatos:
- - Author (creator)
- - CreationDate
- - ModDate
-Genera metadata.csv con columnas:
- filename, filepath, author, creation_date_iso, mod_date_iso
+Extrae metadatos PDF usando pypdf y genera metadata.csv
 """
 
-from csv import DictWriter
+import csv
 from datetime import datetime
 from pathlib import Path
-from re import compile
 
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 
 DOWNLOAD_DIR = Path("../downloads")
 OUT_CSV = Path("../metadata.csv")
 
-PDF_DATE_RE = compile(
-    r"D:(\d{4})(\d{2})?(\d{2})?(\d{2})?(\d{2})?(\d{2})?([+\-Z])?(\d{2})?'?(\d{2})?'?"
-)
 
-
-def parse_pdf_date(s):
+def parse_pdf_date(d):
     """
-    Parse PDF date string like "D:YYYYMMDDHHmmSSOHH'mm'"
-    Returns ISO 8601 string or empty string if unknown.
+    Convierte un string de fecha PDF (D:YYYYMMDDHHmmSS...) a ISO 8601
+    Ej: 'D:20240628120000Z' -> '2024-06-28T12:00:00Z'
     """
-    if not s:
+    if not d or not isinstance(d, str):
         return ""
-    s = s.strip()
-    m = PDF_DATE_RE.match(s)
-    if not m:
-        # fallback: attempt to parse common patterns
-        try:
-            return datetime.fromisoformat(s).isoformat()
-        except Exception:
-            return s
-    year, mon, day, hour, minute, second, tzsign, tzh, tzm = m.groups()
-    year = int(year)
-    mon = int(mon or 1)
-    day = int(day or 1)
-    hour = int(hour or 0)
-    minute = int(minute or 0)
-    second = int(second or 0)
-    dt = datetime(year, mon, day, hour, minute, second)
-    if tzsign in ("+", "-"):
-        # timezone offset present
-        try:
-            tzh = int(tzh or 0)
-            tzm = int(tzm or 0)
-            offset_minutes = tzh * 60 + tzm
-            if tzsign == "-":
-                offset_minutes = -offset_minutes
-            # represent as naive ISO with offset text
-            # better to return ISO without offset applied; include offset
-            return dt.isoformat() + f"{tzsign}{tzh:02d}:{tzm:02d}"
-        except Exception:
-            pass
-    elif tzsign == "Z":
-        return dt.isoformat() + "Z"
-    return dt.isoformat()
+
+    d = d.strip()
+
+    # Formato PDF estándar: D:YYYYMMDDHHmmSSOHH'mm'
+    if d.startswith("D:"):
+        d = d[2:]  # quitar 'D:'
+
+    # Rellenar valores faltantes
+    year = int(d[0:4])
+    month = int(d[4:6]) if len(d) >= 6 else 1
+    day = int(d[6:8]) if len(d) >= 8 else 1
+    hour = int(d[8:10]) if len(d) >= 10 else 0
+    minute = int(d[10:12]) if len(d) >= 12 else 0
+    second = int(d[12:14]) if len(d) >= 14 else 0
+
+    # timezone (si existe)
+    tz = ""
+    if len(d) > 14:
+        tz = d[14:]
+
+    dt = datetime(year, month, day, hour, minute, second)
+    iso = dt.isoformat()
+    if tz:
+        iso += f" {tz}"
+    return iso
 
 
-def extract_metadata_from_pdf(path: Path):
+def extract_metadata(path: Path):
+    """
+    Extrae metadatos usando pypdf
+    """
     try:
         reader = PdfReader(str(path))
-        md = reader.metadata or {}
-        # PyPDF2 returns keys like '/Author', '/CreationDate', '/ModDate'
-        author = md.get("/Author") or md.get("Author") or ""
-        creation_raw = md.get("/CreationDate") or md.get("CreationDate") or ""
-        mod_raw = md.get("/ModDate") or md.get("ModDate") or ""
-        creation = parse_pdf_date(creation_raw) if creation_raw else ""
-        mod = parse_pdf_date(mod_raw) if mod_raw else ""
+        md = reader.metadata  # dict con claves tipo '/Author', '/ModDate'
+
+        author = md.get("/Author", "")
+        creation_raw = md.get("/CreationDate", "")
+        mod_raw = md.get("/ModDate", "")
+
+        creation = parse_pdf_date(creation_raw)
+        modification = parse_pdf_date(mod_raw)
+
         return {
             "filename": path.name,
-            "filepath": str(path.resolve()),
             "author": author,
-            "creation_raw": creation_raw,
             "creation": creation,
-            "mod_raw": mod_raw,
-            "modification": mod,
+            "modification": modification,
+            "error": "",
         }
+
     except Exception as e:
         return {
             "filename": path.name,
-            "filepath": str(path.resolve()),
             "author": "",
-            "creation_raw": "",
             "creation": "",
-            "mod_raw": "",
             "modification": "",
             "error": str(e),
         }
 
 
 def main():
-    rows = []
     if not DOWNLOAD_DIR.exists():
-        print(f"{DOWNLOAD_DIR} no existe. Ejecuta primero el script de descarga.")
+        print(
+            f"No existe la carpeta {DOWNLOAD_DIR}. Ejecutá primero el script de descarga."
+        )
         return
 
-    pdf_files = sorted(DOWNLOAD_DIR.glob("*.pdf"))
-    if not pdf_files:
-        print("No se encontraron PDFs en", DOWNLOAD_DIR)
-    for p in pdf_files:
-        print("Procesando", p.name)
-        r = extract_metadata_from_pdf(p)
-        rows.append(r)
+    pdfs = list(DOWNLOAD_DIR.glob("*.pdf"))
+    if not pdfs:
+        print("No se encontraron PDFs en ./downloads")
+        return
 
-    # columnas deseadas
+    rows = []
+
+    for p in pdfs:
+        print(f"Procesando {p.name}")
+        rows.append(extract_metadata(p))
+
     fieldnames = [
         "filename",
-        "filepath",
         "author",
-        "creation_raw",
         "creation",
-        "mod_raw",
         "modification",
         "error",
     ]
+
     with OUT_CSV.open("w", newline="", encoding="utf-8") as f:
-        w = DictWriter(f, fieldnames=fieldnames)
-        w.writeheader()
-        for row in rows:
-            # asegúrate que todas las keys existan
-            for k in fieldnames:
-                if k not in row:
-                    row[k] = ""
-            w.writerow(row)
-    print("CSV generado:", OUT_CSV.resolve())
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for r in rows:
+            writer.writerow(r)
+
+    print(f"Listo. Archivo generado: {OUT_CSV.resolve()}")
 
 
 if __name__ == "__main__":

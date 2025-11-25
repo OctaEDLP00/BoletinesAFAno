@@ -55,8 +55,8 @@ setup_python() {
   if [ ! -f "$REQ_FILE" ]; then
     warn "No se encontró requirements.txt en $PY_DIR. Creando requirements mínimo con PyPDF2."
     cat >"$REQ_FILE" <<'EOF'
-PyPDF2>=3.0
-python-dateutil>=2.8
+PyPDF2
+pypdf
 EOF
   else
     log "Se encontró $REQ_FILE"
