@@ -32,7 +32,7 @@ export async function ensureDir(dir) {
     log(`Crawling page ${p}: ${url}\n`);
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    await page.waitForTimeout(300);
+    // await page.waitForTimeout(300);
 
     const entries = await collectTableEntries(page);
     if (!entries.length) {

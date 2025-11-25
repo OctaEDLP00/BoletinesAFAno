@@ -10,6 +10,11 @@ Incluye:
 - Instalación automática de dependencias NodeJS dentro de `NodeJS/` usando **pnpm** o, si no está disponible, **npm**.
 - Scripts (`setup.ps1` y `setup.sh`) diseñados para funcionar en Windows, Linux y MacOS.
 
+Enlaces a los metadatos de las dos descargas de los archivos y sus metadatos 
+
+- [Ejecutivo](https://docs.google.com/spreadsheets/d/1BSh4QPISDKwtvImIo5ii1RbQcLsOnFJwyZIinJoR7gU/edit?gid=0#gid=0)
+- [Disciplinario](https://docs.google.com/spreadsheets/d/1FzJGwnTtH6iZup9dRHBgQ4KCqm-DTevYO3vJSqeuzn4/edit)
+
 ## 📂 Estructura del Proyecto (recomendada)
 
 ```

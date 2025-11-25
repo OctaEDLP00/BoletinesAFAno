@@ -10,7 +10,7 @@
  * @type {Options}
  */
 export const OPTS = {
-  baseUrl: "https://www.afa.com.ar/es/boletins/tribunal-de-disciplina?s=10",
+  baseUrl: "https://www.afa.com.ar/es/boletins/comite-ejecutivo?s=3",
   outDir: "../downloads",
   startPage: 1,
   maxPages: 200,
